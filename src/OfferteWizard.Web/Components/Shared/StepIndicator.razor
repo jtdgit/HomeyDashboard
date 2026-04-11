@@ -1,0 +1,35 @@
+@* Custom step indicator matching AFAS configurator style *@
+<div class="step-indicator">
+    @for (int i = 0; i < Steps.Count; i++)
+    {
+        var index = i;
+        var isActive = i == ActiveStep;
+        var isCompleted = i < ActiveStep;
+
+        @if (i > 0)
+        {
+            <div class="step-indicator__connector @(isCompleted ? "step-indicator__connector--active" : "")"></div>
+        }
+
+        <div class="step-indicator__item @(isActive ? "step-indicator__item--active" : "") @(isCompleted ? "step-indicator__item--completed" : "")"
+             @onclick="() => OnStepClicked.InvokeAsync(index)">
+            <div class="step-indicator__number">
+                @if (isCompleted)
+                {
+                    <span class="material-symbols-outlined" style="font-size: 18px;">check</span>
+                }
+                else
+                {
+                    @(i + 1)
+                }
+            </div>
+            <span class="step-indicator__label">@Steps[i]</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<string> Steps { get; set; } = new();
+    [Parameter] public int ActiveStep { get; set; }
+    [Parameter] public EventCallback<int> OnStepClicked { get; set; }
+}

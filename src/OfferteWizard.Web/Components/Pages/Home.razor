@@ -1,0 +1,122 @@
+@page "/"
+@inject AppState AppState
+@inject IKlantService KlantService
+@inject IOfferteService OfferteService
+@inject NavigationManager Nav
+
+<PageTitle>AFAS Offerte Wizard</PageTitle>
+
+<div class="container">
+
+    @* Hero Section *@
+    <div class="hero-section">
+        <h3 style="color: white; font-weight: 700;">Offerte Wizard</h3>
+        <p style="color: rgba(255,255,255,0.85); font-weight: 300; font-size: 1.1rem;">
+            Stel zelfstandig een offerte samen voor optimalisatieprojecten met consultants
+        </p>
+    </div>
+
+    @if (_klant != null)
+    {
+        <div class="card-grid">
+            <div class="action-card" @onclick="@(() => Nav.NavigateTo("/wizard"))">
+                <div class="action-card__icon">
+                    <span class="material-symbols-outlined" style="font-size: 2rem;">auto_fix_high</span>
+                </div>
+                <h6 class="action-card__title">Nieuwe Offerte</h6>
+                <p class="action-card__desc">Start de wizard om uw offerte samen te stellen</p>
+            </div>
+            <div class="action-card" @onclick="@(() => Nav.NavigateTo("/aanvragen"))">
+                <div class="action-card__icon" style="background: #E8F5E9; color: #3CC658;">
+                    <span class="material-symbols-outlined" style="font-size: 2rem;">list_alt</span>
+                </div>
+                <h6 class="action-card__title">Mijn Aanvragen</h6>
+                <p class="action-card__desc">Bekijk de status van uw ingediende offertes</p>
+            </div>
+            <div class="action-card" style="cursor: default;">
+                <div class="action-card__icon" style="background: #E3F2FD; color: #005FAA;">
+                    <span class="material-symbols-outlined" style="font-size: 2rem;">business</span>
+                </div>
+                <h6 class="action-card__title">@_klant.Naam</h6>
+                <p class="action-card__desc">@_klant.Branche · @FormatBeheerOmvang(_klant.BeheerOmvang)</p>
+            </div>
+        </div>
+
+        @if (_aanvragen.Any())
+        {
+            <h6 style="font-weight: 700; margin: 24px 0 12px;">Recente aanvragen</h6>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nr</th>
+                            <th>Datum</th>
+                            <th>Thema's</th>
+                            <th>Dagen</th>
+                            <th>Kosten</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _aanvragen)
+                        {
+                            <tr>
+                                <td><strong>#@a.Id</strong></td>
+                                <td>@a.AanvraagDatum.ToString("dd-MM-yyyy")</td>
+                                <td>@string.Join(", ", a.Regels.Select(r => r.Thema?.Naam ?? ""))</td>
+                                <td>@a.TotaalDagen.ToString("0.#")</td>
+                                <td>€ @a.TotaalKosten.ToString("N0")</td>
+                                <td><span class="chip @GetStatusCssClass(a.Status)">@a.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert--info">
+            Selecteer een klant via het dropdown-menu bovenin de pagina om aan de slag te gaan.
+        </div>
+    }
+</div>
+
+@code {
+    private Klant? _klant;
+    private List<OfferteAanvraag> _aanvragen = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += async () => { await LoadData(); await InvokeAsync(StateHasChanged); };
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        if (AppState.HuidigeKlantId.HasValue)
+        {
+            _klant = await KlantService.GetKlantByIdAsync(AppState.HuidigeKlantId.Value);
+            _aanvragen = await OfferteService.GetAanvragenAsync(AppState.HuidigeKlantId);
+        }
+    }
+
+    private static string FormatBeheerOmvang(BeheerOmvang o) => o switch
+    {
+        BeheerOmvang.Klein => "1-2 beheerders",
+        BeheerOmvang.Middel => "3-5 beheerders",
+        BeheerOmvang.Groot => ">5 beheerders",
+        _ => o.ToString()
+    };
+
+    private static string GetStatusCssClass(OfferteStatus status) => status switch
+    {
+        OfferteStatus.Concept => "chip--muted",
+        OfferteStatus.InReview => "chip--warning",
+        OfferteStatus.Teruggestuurd => "chip--info",
+        OfferteStatus.Goedgekeurd => "chip--success",
+        OfferteStatus.Verstuurd => "chip--primary",
+        OfferteStatus.Afgewezen => "chip--danger",
+        _ => ""
+    };
+}

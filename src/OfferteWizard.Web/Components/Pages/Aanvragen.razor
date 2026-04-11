@@ -1,0 +1,122 @@
+@page "/aanvragen"
+@rendermode InteractiveServer
+@inject AppState AppState
+@inject IOfferteService OfferteService
+@inject IPdfGenerator PdfGenerator
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>Mijn Aanvragen</PageTitle>
+
+<div class="container">
+    <h4 class="wiz-title">Mijn Aanvragen</h4>
+    <p class="wiz-subtitle" style="margin-bottom: 24px;">Overzicht van al uw ingediende offerteaanvragen</p>
+
+    @if (!_aanvragen.Any())
+    {
+        <div class="empty-state">
+            <span class="material-symbols-outlined" style="font-size: 3rem; color: #C3CBD3;">inbox</span>
+            <h6 style="margin-top: 12px; color: #6B7B8D;">Nog geen aanvragen</h6>
+            <p style="color: #6B7B8D; margin-bottom: 16px;">Start de wizard om uw eerste offerte samen te stellen.</p>
+            <a href="/wizard" class="btn btn--secondary btn--pill">
+                <span class="material-symbols-outlined">auto_fix_high</span> Nieuwe Offerte
+            </a>
+        </div>
+    }
+    else
+    {
+        @foreach (var aanvraag in _aanvragen.Where(a => a.Status == OfferteStatus.Teruggestuurd))
+        {
+            <div class="alert alert--warning" style="margin-bottom: 12px;">
+                <span class="material-symbols-outlined" style="vertical-align: middle;">feedback</span>
+                <strong>Aanvraag #@aanvraag.Id is teruggestuurd:</strong> @aanvraag.RedenTerugsturen
+                <br /><a href="/wizard" style="color: #F59F39;">Pas uw aanvraag aan via de wizard</a>
+            </div>
+        }
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Nr</th>
+                        <th>Datum</th>
+                        <th>Thema's</th>
+                        <th>Dagen</th>
+                        <th>Kosten</th>
+                        <th>Status</th>
+                        <th style="width: 60px;">PDF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in _aanvragen)
+                    {
+                        <tr>
+                            <td><strong>#@a.Id</strong></td>
+                            <td>@a.AanvraagDatum.ToString("dd-MM-yyyy")</td>
+                            <td>
+                                @foreach (var regel in a.Regels.Take(3))
+                                {
+                                    <span class="chip chip--outline" style="margin-right: 4px;">@(regel.Thema?.Naam ?? "")</span>
+                                }
+                                @if (a.Regels.Count > 3)
+                                {
+                                    <span class="chip chip--muted">+@(a.Regels.Count - 3)</span>
+                                }
+                            </td>
+                            <td>@a.TotaalDagen.ToString("0.#")</td>
+                            <td><strong>€ @a.TotaalKosten.ToString("N0")</strong></td>
+                            <td>
+                                <span class="chip @GetStatusCssClass(a.Status)">@GetStatusLabel(a.Status)</span>
+                            </td>
+                            <td>
+                                <button class="btn-icon" title="Download PDF" @onclick="@(() => DownloadPdf(a))">
+                                    <span class="material-symbols-outlined">picture_as_pdf</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<OfferteAanvraag> _aanvragen = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AppState.HuidigeKlantId.HasValue)
+            _aanvragen = await OfferteService.GetAanvragenAsync(AppState.HuidigeKlantId);
+    }
+
+    private async Task DownloadPdf(OfferteAanvraag aanvraag)
+    {
+        var pdfBytes = PdfGenerator.GenereerOffertePdf(aanvraag);
+        var fileName = $"Offerte_{aanvraag.Klant?.Naam?.Replace(" ", "_")}_{aanvraag.AanvraagDatum:yyyyMMdd}.pdf";
+        var base64 = Convert.ToBase64String(pdfBytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+
+    private static string GetStatusCssClass(OfferteStatus status) => status switch
+    {
+        OfferteStatus.Concept => "chip--muted",
+        OfferteStatus.InReview => "chip--warning",
+        OfferteStatus.Teruggestuurd => "chip--info",
+        OfferteStatus.Goedgekeurd => "chip--success",
+        OfferteStatus.Verstuurd => "chip--primary",
+        OfferteStatus.Afgewezen => "chip--danger",
+        _ => ""
+    };
+
+    private static string GetStatusLabel(OfferteStatus status) => status switch
+    {
+        OfferteStatus.Concept => "Concept",
+        OfferteStatus.InReview => "In Review",
+        OfferteStatus.Teruggestuurd => "Teruggestuurd",
+        OfferteStatus.Goedgekeurd => "Goedgekeurd",
+        OfferteStatus.Verstuurd => "Verstuurd",
+        OfferteStatus.Afgewezen => "Afgewezen",
+        _ => status.ToString()
+    };
+}

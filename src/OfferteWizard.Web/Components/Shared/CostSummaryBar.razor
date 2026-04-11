@@ -1,0 +1,38 @@
+@* Sticky bottom bar showing running cost indication *@
+@if (Visible)
+{
+    <div class="cost-summary-bar">
+        <div class="cost-summary-bar__range">
+            <div>
+                <div class="cost-summary-bar__label">Geschatte dagen</div>
+                <div class="cost-summary-bar__days">
+                    @MinDagen.ToString("0.#") – @MaxDagen.ToString("0.#") dagen
+                </div>
+            </div>
+            <div>
+                <div class="cost-summary-bar__label">Indicatie kosten</div>
+                <div class="cost-summary-bar__value">
+                    € @MinKosten.ToString("N0") – € @MaxKosten.ToString("N0")
+                </div>
+            </div>
+        </div>
+        <div class="d-flex align-center gap-2">
+            <span class="badge-indicatief">
+                <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">info</span> Indicatief
+            </span>
+            @if (ActionContent != null)
+            {
+                @ActionContent
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public decimal MinDagen { get; set; }
+    [Parameter] public decimal MaxDagen { get; set; }
+    [Parameter] public decimal MinKosten { get; set; }
+    [Parameter] public decimal MaxKosten { get; set; }
+    [Parameter] public RenderFragment? ActionContent { get; set; }
+}

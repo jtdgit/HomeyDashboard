@@ -1,0 +1,88 @@
+﻿@inherits LayoutComponentBase
+@inject AppState AppState
+@inject IKlantService KlantService
+@inject NavigationManager Nav
+
+<div class="layout">
+    <header class="topbar">
+        <button class="topbar__toggle" @onclick="ToggleDrawer">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <span class="topbar__brand">AFAS<span class="topbar__brand--light">Offerte Wizard</span></span>
+        <div class="topbar__spacer"></div>
+
+        <div class="topbar__roles">
+            <button class="topbar__role @(AppState.HuidigeRol == Rol.Klant ? "topbar__role--active" : "")"
+                    @onclick="@(() => OnRolChanged(Rol.Klant))">Klant</button>
+            <button class="topbar__role @(AppState.HuidigeRol == Rol.Succesmanager ? "topbar__role--active" : "")"
+                    @onclick="@(() => OnRolChanged(Rol.Succesmanager))">Succesmanager</button>
+        </div>
+
+        <select class="topbar__select" value="@AppState.HuidigeKlantId" @onchange="OnKlantSelectChanged">
+            @foreach (var klant in _klanten)
+            {
+                <option value="@klant.Id" selected="@(AppState.HuidigeKlantId == klant.Id)">@klant.Naam</option>
+            }
+        </select>
+    </header>
+
+    <nav class="sidebar @(_drawerOpen ? "sidebar--open" : "")">
+        <a href="/" class="sidebar__link @(IsActive("/") ? "sidebar__link--active" : "")">
+            <span class="material-symbols-outlined">home</span> Home
+        </a>
+        <a href="/wizard" class="sidebar__link @(IsActive("/wizard") ? "sidebar__link--active" : "")">
+            <span class="material-symbols-outlined">auto_fix_high</span> Nieuwe Offerte
+        </a>
+        <a href="/aanvragen" class="sidebar__link @(IsActive("/aanvragen") ? "sidebar__link--active" : "")">
+            <span class="material-symbols-outlined">list_alt</span> Mijn Aanvragen
+        </a>
+        @if (AppState.HuidigeRol == Rol.Succesmanager)
+        {
+            <div class="sidebar__divider"></div>
+            <a href="/dashboard" class="sidebar__link @(IsActive("/dashboard") ? "sidebar__link--active" : "")">
+                <span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+        }
+    </nav>
+
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private List<Klant> _klanten = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _klanten = await KlantService.GetAlleKlantenAsync();
+        if (_klanten.Any() && !AppState.HuidigeKlantId.HasValue)
+        {
+            AppState.HuidigeKlantId = _klanten.First().Id;
+        }
+    }
+
+    private bool IsActive(string href)
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        return href == "/" ? path == "/" : path.StartsWith(href);
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void OnRolChanged(Rol rol)
+    {
+        AppState.HuidigeRol = rol;
+        AppState.NotifyStateChanged();
+    }
+
+    private void OnKlantSelectChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            AppState.HuidigeKlantId = id;
+            AppState.NotifyStateChanged();
+        }
+    }
+}

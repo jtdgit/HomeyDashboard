@@ -1,0 +1,23 @@
+@* Reusable selection card for configurator-style choices *@
+<div class="selection-card @(Selected ? "selection-card--selected" : "")" @onclick="OnClick">
+    <div class="selection-card__icon">
+        <span style="font-size: 1.8rem;">@Icon</span>
+    </div>
+    <div class="selection-card__title">@Title</div>
+    <div class="selection-card__description">@Description</div>
+    @if (ChildContent != null)
+    {
+        <div class="selection-card__meta">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "📦";
+    [Parameter] public bool Selected { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

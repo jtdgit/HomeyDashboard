@@ -1,0 +1,454 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@inject AppState AppState
+@inject IOfferteService OfferteService
+@inject IPdfGenerator PdfGenerator
+@inject IJSRuntime JS
+
+<PageTitle>Succesmanager Dashboard</PageTitle>
+
+<div class="container container--wide">
+    <h4 class="wiz-title">Succesmanager Dashboard</h4>
+    <p class="wiz-subtitle" style="margin-bottom: 24px;">Beheer en beoordeel alle offerteaanvragen</p>
+
+    @if (AppState.HuidigeRol != Rol.Succesmanager)
+    {
+        <div class="alert alert--warning">
+            Dit dashboard is alleen toegankelijk voor Succesmanagers. Wijzig uw rol in de bovenste balk.
+        </div>
+        return;
+    }
+
+    @* KPI-tegels *@
+    <div class="kpi-grid">
+        <div class="kpi-tile" style="border-top-color: #C3CBD3;">
+            <div class="kpi-tile__value">@_aanvragen.Count(a => a.Status == OfferteStatus.Concept)</div>
+            <div class="kpi-tile__label">Concept</div>
+        </div>
+        <div class="kpi-tile" style="border-top-color: #F59F39;">
+            <div class="kpi-tile__value" style="color: #F59F39;">@_aanvragen.Count(a => a.Status == OfferteStatus.InReview)</div>
+            <div class="kpi-tile__label">In Review</div>
+        </div>
+        <div class="kpi-tile" style="border-top-color: #0074D0;">
+            <div class="kpi-tile__value" style="color: #0074D0;">@_aanvragen.Count(a => a.Status == OfferteStatus.Teruggestuurd)</div>
+            <div class="kpi-tile__label">Teruggestuurd</div>
+        </div>
+        <div class="kpi-tile" style="border-top-color: #3CC658;">
+            <div class="kpi-tile__value" style="color: #3CC658;">@_aanvragen.Count(a => a.Status == OfferteStatus.Goedgekeurd)</div>
+            <div class="kpi-tile__label">Goedgekeurd</div>
+        </div>
+        <div class="kpi-tile" style="border-top-color: #005FAA;">
+            <div class="kpi-tile__value" style="color: #005FAA;">@_aanvragen.Count(a => a.Status == OfferteStatus.Verstuurd)</div>
+            <div class="kpi-tile__label">Verstuurd</div>
+        </div>
+        <div class="kpi-tile" style="border-top-color: #D32F2F;">
+            <div class="kpi-tile__value" style="color: #D32F2F;">@_aanvragen.Count(a => a.Status == OfferteStatus.Afgewezen)</div>
+            <div class="kpi-tile__label">Afgewezen</div>
+        </div>
+    </div>
+
+    @* Aanvragen tabel *@
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div class="table-toolbar">
+            <h6>Alle Aanvragen</h6>
+            <input type="text" class="form-input" placeholder="Zoeken..." @bind="_zoekTerm" @bind:event="oninput" style="max-width: 260px;" />
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th @onclick="@(() => SortBy("id"))" class="sortable">Nr @SortIcon("id")</th>
+                        <th @onclick="@(() => SortBy("datum"))" class="sortable">Datum @SortIcon("datum")</th>
+                        <th>Klant</th>
+                        <th>Thema's</th>
+                        <th>Dagen</th>
+                        <th>Kosten</th>
+                        <th>Status</th>
+                        <th>Acties</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in GetFilteredAndSorted())
+                    {
+                        <tr class="@(a == _geselecteerdeAanvraag ? "row--selected" : "")">
+                            <td>#@a.Id</td>
+                            <td>@a.AanvraagDatum.ToString("dd-MM-yyyy")</td>
+                            <td>@(a.Klant?.Naam ?? "-")</td>
+                            <td>@string.Join(", ", a.Regels.Select(r => r.Thema?.Naam ?? ""))</td>
+                            <td>@a.TotaalDagen.ToString("0.#")</td>
+                            <td>€ @a.TotaalKosten.ToString("N0")</td>
+                            <td><span class="chip @GetStatusCssClass(a.Status)">@GetStatusLabel(a.Status)</span></td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn-icon" title="Details" @onclick="@(() => OpenDetail(a))">
+                                        <span class="material-symbols-outlined">open_in_new</span>
+                                    </button>
+                                    <div class="dropdown">
+                                        <button class="btn-icon" @onclick="@(() => ToggleMenu(a.Id))">
+                                            <span class="material-symbols-outlined">more_vert</span>
+                                        </button>
+                                        @if (_openMenuId == a.Id)
+                                        {
+                                            <div class="dropdown__menu">
+                                                @if (a.Status == OfferteStatus.Concept)
+                                                {
+                                                    <button class="dropdown__item" @onclick="@(async () => { await UpdateStatus(a.Id, OfferteStatus.InReview); _openMenuId = null; })">Start Review</button>
+                                                }
+                                                @if (a.Status == OfferteStatus.InReview)
+                                                {
+                                                    <button class="dropdown__item" @onclick="@(() => { OpenDetail(a); _openMenuId = null; })">Beoordelen & Bijstellen</button>
+                                                    <button class="dropdown__item" @onclick="@(async () => { await UpdateStatus(a.Id, OfferteStatus.Goedgekeurd); _openMenuId = null; })">Direct Goedkeuren</button>
+                                                    <button class="dropdown__item" @onclick="@(() => { OpenTerugstuurDialog(a); _openMenuId = null; })">Terugsturen naar Klant</button>
+                                                    <button class="dropdown__item dropdown__item--danger" @onclick="@(() => { OpenAfwijsDialog(a); _openMenuId = null; })">Afwijzen</button>
+                                                }
+                                                @if (a.Status == OfferteStatus.Goedgekeurd)
+                                                {
+                                                    <button class="dropdown__item" @onclick="@(async () => { await UpdateStatus(a.Id, OfferteStatus.Verstuurd); _openMenuId = null; })">Markeer als Verstuurd</button>
+                                                }
+                                                @if (a.Status == OfferteStatus.Teruggestuurd)
+                                                {
+                                                    <button class="dropdown__item" @onclick="@(async () => { await UpdateStatus(a.Id, OfferteStatus.InReview); _openMenuId = null; })">Opnieuw in Review nemen</button>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Detail-panel *@
+    @if (_geselecteerdeAanvraag != null)
+    {
+        <div class="card" style="margin-top: 16px;">
+            <div class="card__header">
+                <h5>Aanvraag #@_geselecteerdeAanvraag.Id — @(_geselecteerdeAanvraag.Klant?.Naam ?? "Onbekend")</h5>
+                <button class="btn-icon" @onclick="@(() => _geselecteerdeAanvraag = null)">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_geselecteerdeAanvraag.OpmerkingenKlant))
+            {
+                <div class="alert alert--info" style="margin-bottom: 12px;">
+                    <strong>Opmerking klant:</strong> @_geselecteerdeAanvraag.OpmerkingenKlant
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_geselecteerdeAanvraag.RedenTerugsturen))
+            {
+                <div class="alert alert--warning" style="margin-bottom: 12px;">
+                    <strong>Reden terugsturen:</strong> @_geselecteerdeAanvraag.RedenTerugsturen
+                </div>
+            }
+
+            <div class="table-wrap">
+                <table class="data-table data-table--bordered">
+                    <thead>
+                        <tr>
+                            <th>Thema</th>
+                            <th>Berekend (dagen)</th>
+                            <th>Aangepast (dagen)</th>
+                            <th>Type</th>
+                            <th>Dagtarief</th>
+                            <th>Subtotaal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var regel in _geselecteerdeAanvraag.Regels)
+                        {
+                            <tr>
+                                <td><strong>@(regel.Thema?.Naam ?? "-")</strong></td>
+                                <td>@regel.BerekendeDagen.ToString("0.#")</td>
+                                <td>
+                                    @if (_geselecteerdeAanvraag.Status == OfferteStatus.InReview)
+                                    {
+                                        <input type="number" class="form-input" style="max-width: 100px;"
+                                               value="@(regel.AangepasteDagen ?? regel.BerekendeDagen)"
+                                               step="0.5" min="0"
+                                               @onchange="@(e => OnDagenAangepast(regel, decimal.TryParse(e.Value?.ToString(), out var v) ? v : regel.BerekendeDagen))" />
+                                    }
+                                    else
+                                    {
+                                        @((regel.AangepasteDagen ?? regel.BerekendeDagen).ToString("0.#"))
+                                    }
+                                </td>
+                                <td>
+                                    <span class="chip @(regel.ConsultantType == ConsultantType.Senior ? "chip--warning" : "chip--primary")">
+                                        @regel.ConsultantType
+                                    </span>
+                                </td>
+                                <td>€ @regel.Dagtarief.ToString("N0")</td>
+                                <td><strong>€ @(((regel.AangepasteDagen ?? regel.BerekendeDagen) * regel.Dagtarief).ToString("N0"))</strong></td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5"><strong>Totaal</strong></td>
+                            <td><strong>€ @_geselecteerdeAanvraag.Regels.Sum(r => (r.AangepasteDagen ?? r.BerekendeDagen) * r.Dagtarief).ToString("N0")</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="form-field" style="margin-top: 12px;">
+                <label class="form-label">Opmerking Succesmanager</label>
+                <textarea class="form-textarea" rows="2" @bind="_smOpmerking"
+                          placeholder="Vul hier uw beoordeling of bijstelling-toelichting in..."></textarea>
+            </div>
+
+            @if (_geselecteerdeAanvraag.Status == OfferteStatus.InReview)
+            {
+                <div class="btn-row" style="margin-top: 12px;">
+                    <button class="btn btn--success" @onclick="@(() => BeoordeelEnGoedkeuren())">
+                        <span class="material-symbols-outlined">check_circle</span> Goedkeuren (met aanpassingen)
+                    </button>
+                    <button class="btn btn--primary" @onclick="@(() => DownloadPdf(_geselecteerdeAanvraag))">
+                        <span class="material-symbols-outlined">picture_as_pdf</span> Download PDF
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* Terugstuur-dialog *@
+@if (_terugstuurDialogOpen)
+{
+    <div class="modal-overlay" @onclick="@(() => _terugstuurDialogOpen = false)">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h6 class="modal__title">Aanvraag terugsturen naar klant</h6>
+            <p style="margin-bottom: 12px;">Geef een toelichting waarom de aanvraag wordt teruggestuurd. De klant ziet deze informatie en kan de aanvraag aanpassen.</p>
+            <div class="form-field">
+                <label class="form-label">Reden</label>
+                <textarea class="form-textarea" rows="3" @bind="_redenTerugsturen"
+                          placeholder="Bijv.: De scope HRM lijkt beperkt, overweeg ook Workflows mee te nemen."></textarea>
+            </div>
+            <div class="modal__actions">
+                <button class="btn btn--ghost" @onclick="@(() => _terugstuurDialogOpen = false)">Annuleren</button>
+                <button class="btn btn--warning" @onclick="BevestigTerugsturen"
+                        disabled="@string.IsNullOrWhiteSpace(_redenTerugsturen)">Terugsturen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Afwijs-dialog *@
+@if (_afwijsDialogOpen)
+{
+    <div class="modal-overlay" @onclick="@(() => _afwijsDialogOpen = false)">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h6 class="modal__title">Aanvraag afwijzen</h6>
+            <p style="margin-bottom: 12px;">Geef een reden voor de afwijzing. De klant ontvangt deze toelichting.</p>
+            <div class="form-field">
+                <label class="form-label">Reden afwijzing</label>
+                <textarea class="form-textarea" rows="3" @bind="_redenAfwijzing"
+                          placeholder="Bijv.: Op basis van het huidige contract is dit thema niet van toepassing."></textarea>
+            </div>
+            <div class="modal__actions">
+                <button class="btn btn--ghost" @onclick="@(() => _afwijsDialogOpen = false)">Annuleren</button>
+                <button class="btn btn--danger" @onclick="BevestigAfwijzing"
+                        disabled="@string.IsNullOrWhiteSpace(_redenAfwijzing)">Afwijzen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Toast notification *@
+@if (_toastMessage != null)
+{
+    <div class="toast toast--@_toastType">@_toastMessage</div>
+}
+
+@code {
+    private List<OfferteAanvraag> _aanvragen = new();
+    private string _zoekTerm = "";
+    private OfferteAanvraag? _geselecteerdeAanvraag;
+    private string _smOpmerking = "";
+    private int? _openMenuId;
+    private string _sortColumn = "id";
+    private bool _sortAsc = false;
+
+    // Terugstuur dialog
+    private bool _terugstuurDialogOpen;
+    private string _redenTerugsturen = "";
+    private int? _terugstuurAanvraagId;
+
+    // Afwijs dialog
+    private bool _afwijsDialogOpen;
+    private string _redenAfwijzing = "";
+    private int? _afwijsAanvraagId;
+
+    // Toast
+    private string? _toastMessage;
+    private string _toastType = "info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _aanvragen = await OfferteService.GetAanvragenAsync();
+    }
+
+    private void ShowToast(string message, string type = "info")
+    {
+        _toastMessage = message;
+        _toastType = type;
+        StateHasChanged();
+        _ = DismissToast();
+    }
+
+    private async Task DismissToast()
+    {
+        await Task.Delay(4000);
+        _toastMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleMenu(int id)
+    {
+        _openMenuId = _openMenuId == id ? null : id;
+    }
+
+    private void SortBy(string column)
+    {
+        if (_sortColumn == column) _sortAsc = !_sortAsc;
+        else { _sortColumn = column; _sortAsc = true; }
+    }
+
+    private MarkupString SortIcon(string column)
+    {
+        if (_sortColumn != column) return new MarkupString("");
+        return new MarkupString(_sortAsc ? " ▲" : " ▼");
+    }
+
+    private IEnumerable<OfferteAanvraag> GetFilteredAndSorted()
+    {
+        var items = _aanvragen.Where(FilterFunc);
+        items = _sortColumn switch
+        {
+            "id" => _sortAsc ? items.OrderBy(x => x.Id) : items.OrderByDescending(x => x.Id),
+            "datum" => _sortAsc ? items.OrderBy(x => x.AanvraagDatum) : items.OrderByDescending(x => x.AanvraagDatum),
+            _ => items
+        };
+        return items;
+    }
+
+    private void OpenDetail(OfferteAanvraag aanvraag)
+    {
+        _geselecteerdeAanvraag = aanvraag;
+        _smOpmerking = aanvraag.OpmerkingenSuccesmanager ?? "";
+    }
+
+    private void OnDagenAangepast(OfferteRegel regel, decimal nieuweDagen)
+    {
+        regel.AangepasteDagen = nieuweDagen;
+    }
+
+    private async Task BeoordeelEnGoedkeuren()
+    {
+        if (_geselecteerdeAanvraag == null) return;
+
+        await OfferteService.BijstellenEnGoedkeurenAsync(
+            _geselecteerdeAanvraag.Id,
+            _geselecteerdeAanvraag.Regels.ToDictionary(r => r.Id, r => r.AangepasteDagen),
+            _smOpmerking);
+
+        ShowToast("Aanvraag goedgekeurd met aanpassingen", "success");
+        _geselecteerdeAanvraag = null;
+        await LoadData();
+    }
+
+    private void OpenTerugstuurDialog(OfferteAanvraag aanvraag)
+    {
+        _terugstuurAanvraagId = aanvraag.Id;
+        _redenTerugsturen = "";
+        _terugstuurDialogOpen = true;
+    }
+
+    private async Task BevestigTerugsturen()
+    {
+        if (_terugstuurAanvraagId.HasValue)
+        {
+            await OfferteService.TerugStudenAsync(_terugstuurAanvraagId.Value, _redenTerugsturen);
+            ShowToast("Aanvraag teruggestuurd naar klant", "info");
+            _terugstuurDialogOpen = false;
+            await LoadData();
+        }
+    }
+
+    private void OpenAfwijsDialog(OfferteAanvraag aanvraag)
+    {
+        _afwijsAanvraagId = aanvraag.Id;
+        _redenAfwijzing = "";
+        _afwijsDialogOpen = true;
+    }
+
+    private async Task BevestigAfwijzing()
+    {
+        if (_afwijsAanvraagId.HasValue)
+        {
+            await OfferteService.UpdateStatusAsync(_afwijsAanvraagId.Value, OfferteStatus.Afgewezen, _redenAfwijzing);
+            ShowToast("Aanvraag afgewezen", "warning");
+            _afwijsDialogOpen = false;
+            await LoadData();
+        }
+    }
+
+    private async Task UpdateStatus(int id, OfferteStatus nieuweStatus)
+    {
+        var success = await OfferteService.UpdateStatusAsync(id, nieuweStatus, null);
+        if (success)
+        {
+            ShowToast($"Status bijgewerkt naar {GetStatusLabel(nieuweStatus)}", "success");
+            await LoadData();
+        }
+    }
+
+    private async Task DownloadPdf(OfferteAanvraag aanvraag)
+    {
+        var pdfBytes = PdfGenerator.GenereerOffertePdf(aanvraag);
+        var fileName = $"Offerte_{aanvraag.Klant?.Naam?.Replace(" ", "_")}_{aanvraag.AanvraagDatum:yyyyMMdd}.pdf";
+        var base64 = Convert.ToBase64String(pdfBytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+
+    private bool FilterFunc(OfferteAanvraag aanvraag)
+    {
+        if (string.IsNullOrWhiteSpace(_zoekTerm)) return true;
+        var term = _zoekTerm.Trim();
+        return (aanvraag.Klant?.Naam?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
+            || aanvraag.Id.ToString().Contains(term)
+            || aanvraag.Regels.Any(r => r.Thema?.Naam?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private static string GetStatusLabel(OfferteStatus status) => status switch
+    {
+        OfferteStatus.Concept => "Concept",
+        OfferteStatus.InReview => "In Review",
+        OfferteStatus.Teruggestuurd => "Teruggestuurd",
+        OfferteStatus.Goedgekeurd => "Goedgekeurd",
+        OfferteStatus.Verstuurd => "Verstuurd",
+        OfferteStatus.Afgewezen => "Afgewezen",
+        _ => status.ToString()
+    };
+
+    private static string GetStatusCssClass(OfferteStatus status) => status switch
+    {
+        OfferteStatus.Concept => "chip--muted",
+        OfferteStatus.InReview => "chip--warning",
+        OfferteStatus.Teruggestuurd => "chip--info",
+        OfferteStatus.Goedgekeurd => "chip--success",
+        OfferteStatus.Verstuurd => "chip--primary",
+        OfferteStatus.Afgewezen => "chip--danger",
+        _ => ""
+    };
+}

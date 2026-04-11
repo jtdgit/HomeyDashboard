@@ -1,0 +1,190 @@
+/* ── Layout Shell ── */
+::deep .layout {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: auto 1fr;
+    min-height: 100vh;
+}
+
+/* ── Topbar ── */
+::deep .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    background: #005FAA;
+    color: #fff;
+    height: 56px;
+    z-index: 100;
+}
+
+::deep .topbar__toggle {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+}
+
+::deep .topbar__toggle:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+::deep .topbar__brand {
+    font-family: 'Roboto', sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: -0.5px;
+}
+
+::deep .topbar__brand--light {
+    font-weight: 300;
+    margin-left: 4px;
+}
+
+::deep .topbar__spacer {
+    flex: 1;
+}
+
+::deep .topbar__roles {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+::deep .topbar__role {
+    padding: 4px 14px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+::deep .topbar__role:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+::deep .topbar__role--active {
+    background: #F59F39;
+    color: #fff;
+}
+
+::deep .topbar__select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 0.85rem;
+    min-width: 180px;
+    cursor: pointer;
+}
+
+::deep .topbar__select option {
+    color: #1B2127;
+    background: #fff;
+}
+
+/* ── Sidebar ── */
+::deep .sidebar {
+    grid-row: 2;
+    width: 0;
+    overflow: hidden;
+    background: #1B2127;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 8px;
+    transition: width 0.25s ease, padding 0.25s ease;
+}
+
+::deep .sidebar--open {
+    width: 220px;
+    padding: 8px;
+}
+
+::deep .sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+::deep .sidebar__link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+::deep .sidebar__link--active {
+    background: rgba(0, 95, 170, 0.35);
+    color: #fff;
+    font-weight: 600;
+}
+
+::deep .sidebar__divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 6px 14px;
+}
+
+/* ── Main Content ── */
+::deep .main-content {
+    grid-row: 2;
+    padding: 24px;
+    background: #F2F5F8;
+    overflow-y: auto;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    ::deep .sidebar--open {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        bottom: 0;
+        z-index: 99;
+        width: 220px;
+    }
+
+    ::deep .topbar__roles {
+        display: none;
+    }
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}

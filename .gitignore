@@ -1,0 +1,17 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Node
+node_modules/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.idea/
+*.swp

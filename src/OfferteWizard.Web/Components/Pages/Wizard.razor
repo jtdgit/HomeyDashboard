@@ -1,0 +1,513 @@
+@page "/wizard"
+@rendermode InteractiveServer
+@inject AppState AppState
+@inject IKlantService KlantService
+@inject IThemaService ThemaService
+@inject IVragenService VragenService
+@inject IOfferteCalculator Calculator
+@inject IOfferteService OfferteService
+@inject IPdfGenerator PdfGenerator
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Offerte Samenstellen</PageTitle>
+
+<div class="wizard-container">
+
+    @if (!_completed)
+    {
+        @* ===== Step Indicator ===== *@
+        <StepIndicator Steps="_stepLabels" ActiveStep="_activeStep" OnStepClicked="GoToStep" />
+
+        @* ===== Step Content ===== *@
+        <div class="step-content">
+
+            @* ──────── STAP 1: KLANTPROFIEL ──────── *@
+            @if (_activeStep == 0)
+            {
+                <div class="wizard-header">
+                    <h4 class="wiz-title">Uw klantprofiel</h4>
+                    <p class="wiz-subtitle">Deze gegevens bepalen de complexiteitsfactoren van uw offerte</p>
+                </div>
+
+                @if (_klant != null)
+                {
+                    <div class="profile-card">
+                        <div class="profile-card__header">
+                            <div class="avatar avatar--primary">
+                                <span class="material-symbols-outlined">business</span>
+                            </div>
+                            <div>
+                                <h5 class="profile-card__name">@_klant.Naam</h5>
+                                <p class="profile-card__contact">@_klant.Contactpersoon — @_klant.Email</p>
+                            </div>
+                        </div>
+
+                        <div class="profile-card__row">
+                            <span class="profile-card__label">Branche</span>
+                            <span class="profile-card__value">
+                                <span class="chip chip--primary">@_klant.Branche</span>
+                            </span>
+                        </div>
+                        <div class="profile-card__row">
+                            <span class="profile-card__label">Beheerorganisatie</span>
+                            <span class="profile-card__value">@FormatBeheerOmvang(_klant.BeheerOmvang)</span>
+                        </div>
+                        <div class="profile-card__row">
+                            <span class="profile-card__label">Templateversie</span>
+                            <span class="profile-card__value">@FormatTemplateVersie(_klant.TemplateVersie)</span>
+                        </div>
+                    </div>
+
+                    <div class="info-box info-box--blue">
+                        <strong>Wat betekent dit?</strong> Uw branche (<strong>@_klant.Branche</strong>),
+                        beheeromvang (<strong>@FormatBeheerOmvang(_klant.BeheerOmvang)</strong>) en
+                        templateversie (<strong>@FormatTemplateVersie(_klant.TemplateVersie)</strong>) bepalen
+                        automatisch de complexiteitsfactoren voor een realistische inschatting.
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert--warning">
+                        <strong>Geen klant geselecteerd.</strong> Kies een klant via de selectie bovenin de pagina om verder te gaan.
+                    </div>
+                }
+            }
+
+            @* ──────── STAP 2: THEMA-SELECTIE ──────── *@
+            @if (_activeStep == 1)
+            {
+                <div class="wizard-header">
+                    <h4 class="wiz-title">Kies uw thema's</h4>
+                    <p class="wiz-subtitle">
+                        Selecteer de optimalisatiethema's die u wilt opnemen — @_geselecteerdeThemaIds.Count van @_themas.Count geselecteerd
+                    </p>
+                </div>
+
+                <div class="card-grid">
+                    @foreach (var thema in _themas)
+                    {
+                        var isSelected = _geselecteerdeThemaIds.Contains(thema.Id);
+                        var indicatie = _indicaties.FirstOrDefault(i => i.ThemaId == thema.Id);
+
+                        <SelectionCard Title="@thema.Naam"
+                                       Description="@thema.Beschrijving"
+                                       Icon="@GetThemaIcon(thema.Icoon)"
+                                       Selected="isSelected"
+                                       OnClick="@(() => ToggleThema(thema.Id))">
+                            <span class="chip chip--outline">@thema.Categorie</span>
+                            @if (indicatie != null)
+                            {
+                                <span class="chip chip--muted">
+                                    @indicatie.MinDagen.ToString("0.#")–@indicatie.MaxDagen.ToString("0.#") dagen
+                                </span>
+                            }
+                        </SelectionCard>
+                    }
+                </div>
+            }
+
+            @* ──────── STAP 3: VERDIEPINGSVRAGEN ──────── *@
+            @if (_activeStep == 2)
+            {
+                <div class="wizard-header">
+                    <h4 class="wiz-title">Verdiepingsvragen</h4>
+                    <p class="wiz-subtitle">Beantwoord de vragen zodat we de omvang nauwkeuriger kunnen inschatten</p>
+                </div>
+
+                @if (!_relevanteVragen.Any())
+                {
+                    <div class="alert alert--info">
+                        Er zijn geen aanvullende vragen voor uw selectie en klantprofiel. U kunt verdergaan naar de samenvatting.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var groep in _relevanteVragen.GroupBy(v => v.ThemaId))
+                    {
+                        var thema = _themas.FirstOrDefault(t => t.Id == groep.Key);
+                        var vragen = groep.ToList();
+                        var beantwoord = vragen.Count(v => !string.IsNullOrEmpty(GetAntwoord(v.Id)));
+
+                        <div class="question-group">
+                            <div class="question-group__header">
+                                <span style="font-size: 1.3rem;">@GetThemaIcon(thema?.Icoon ?? "")</span>
+                                <span class="question-group__title">@(thema?.Naam ?? "Thema")</span>
+                                <span class="question-group__progress">@beantwoord / @vragen.Count beantwoord</span>
+                            </div>
+
+                            @foreach (var vraag in vragen)
+                            {
+                                <div class="form-field">
+                                    @if (vraag.Type == VraagType.JaNee)
+                                    {
+                                        <label class="form-label">@vraag.VraagTekst</label>
+                                        <div class="radio-group">
+                                            <label class="radio-option">
+                                                <input type="radio" name="@($"vraag_{vraag.Id}")" value="Ja"
+                                                       checked="@(GetAntwoord(vraag.Id) == "Ja")"
+                                                       @onchange="@(() => SetAntwoord(vraag.Id, "Ja"))" />
+                                                <span>Ja</span>
+                                            </label>
+                                            <label class="radio-option">
+                                                <input type="radio" name="@($"vraag_{vraag.Id}")" value="Nee"
+                                                       checked="@(GetAntwoord(vraag.Id) == "Nee")"
+                                                       @onchange="@(() => SetAntwoord(vraag.Id, "Nee"))" />
+                                                <span>Nee</span>
+                                            </label>
+                                        </div>
+                                    }
+                                    else if (vraag.Type == VraagType.MeerkeuzeEnkel)
+                                    {
+                                        var opties = System.Text.Json.JsonSerializer.Deserialize<string[]>(vraag.Opties ?? "[]") ?? [];
+                                        <label class="form-label">@vraag.VraagTekst</label>
+                                        <select class="form-select" value="@GetAntwoord(vraag.Id)"
+                                                @onchange="@(e => SetAntwoord(vraag.Id, e.Value?.ToString() ?? ""))">
+                                            <option value="">— Kies een optie —</option>
+                                            @foreach (var optie in opties)
+                                            {
+                                                <option value="@optie" selected="@(GetAntwoord(vraag.Id) == optie)">@optie</option>
+                                            }
+                                        </select>
+                                    }
+                                    else if (vraag.Type == VraagType.Schaal)
+                                    {
+                                        <label class="form-label">@vraag.VraagTekst</label>
+                                        <div class="range-field">
+                                            <input type="range" min="1" max="5" step="1"
+                                                   value="@GetAntwoordSchaal(vraag.Id)"
+                                                   @onchange="@(e => SetAntwoord(vraag.Id, e.Value?.ToString() ?? "3"))" />
+                                            <span class="range-value">Score: @GetAntwoordSchaal(vraag.Id)</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            }
+
+            @* ──────── STAP 4: SAMENVATTING ──────── *@
+            @if (_activeStep == 3)
+            {
+                <div class="wizard-header">
+                    <h4 class="wiz-title">Uw conceptofferte</h4>
+                    <p class="wiz-subtitle">Controleer de samenvatting en dien uw aanvraag in</p>
+                </div>
+
+                @if (_resultaten.Any())
+                {
+                    @foreach (var r in _resultaten)
+                    {
+                        <div class="result-card">
+                            <div class="result-card__row">
+                                <div class="result-card__left">
+                                    <div class="avatar avatar--outline">
+                                        <span style="font-size: 1rem;">@GetThemaIconByName(r.ThemaNaam)</span>
+                                    </div>
+                                    <div>
+                                        <div class="result-card__name">@r.ThemaNaam</div>
+                                        <div class="result-card__detail">
+                                            @r.BasisDagen.ToString("0.#") basisdagen
+                                            × @((r.BrancheFactor * r.BeheerFactor * r.TemplateFactor).ToString("0.00"))
+                                            + @r.VragenExtraDagen.ToString("0.#") extra
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="result-card__right">
+                                    <div class="result-card__price">€ @r.Subtotaal.ToString("N0")</div>
+                                    <div class="result-card__detail">
+                                        @r.TotaalDagen.ToString("0.#") dagen ·
+                                        <span class="chip @(r.ConsultantType == ConsultantType.Senior ? "chip--warning" : "chip--outline")">
+                                            @r.ConsultantType
+                                        </span>
+                                        € @r.Dagtarief.ToString("N0")/dag
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="result-total">
+                        <div class="result-total__row">
+                            <div>
+                                <div class="result-total__label">Totaal geschatte investering</div>
+                                <div class="result-total__value">€ @_resultaten.Sum(r => r.Subtotaal).ToString("N0")</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div class="result-total__label">Totaal dagen</div>
+                                <div class="result-total__value">@_resultaten.Sum(r => r.TotaalDagen).ToString("0.#")</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-box info-box--orange">
+                        <strong>Let op:</strong> Dit is een conceptinschatting. Uw Succesmanager toetst deze aan de praktijk
+                        en kan het aantal dagen bijstellen. U ontvangt de definitieve offerte binnen 2 werkdagen.
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">Eventuele opmerkingen</label>
+                        <textarea class="form-textarea" rows="3" @bind="_opmerkingen"
+                                  placeholder="Optioneel: aanvullende informatie of wensen..."></textarea>
+                    </div>
+                }
+            }
+
+        </div>
+
+        @* ===== Navigation Buttons ===== *@
+        <div class="wizard-nav">
+            <div>
+                @if (_activeStep > 0)
+                {
+                    <button class="btn btn--ghost" @onclick="PreviousStep">
+                        <span class="material-symbols-outlined">arrow_back</span> Vorige
+                    </button>
+                }
+            </div>
+            <div>
+                @if (_activeStep < 3)
+                {
+                    <button class="btn btn--primary btn--pill" @onclick="NextStep">
+                        Volgende <span class="material-symbols-outlined">arrow_forward</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn--secondary btn--pill" @onclick="SubmitOfferte" disabled="@_submitting">
+                        @if (_submitting)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Offerte indienen <span class="material-symbols-outlined">send</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @* ===== Sticky Cost Summary ===== *@
+        <CostSummaryBar Visible="@(_geselecteerdeThemaIds.Any() && _klant != null && _activeStep >= 1 && _activeStep <= 2)"
+                        MinDagen="@_indicaties.Sum(i => i.MinDagen)"
+                        MaxDagen="@_indicaties.Sum(i => i.MaxDagen)"
+                        MinKosten="@_indicaties.Sum(i => i.MinKosten)"
+                        MaxKosten="@_indicaties.Sum(i => i.MaxKosten)" />
+    }
+    else
+    {
+        @* ===== COMPLETED STATE ===== *@
+        <div class="wizard-complete">
+            <span class="material-symbols-outlined" style="font-size: 4rem; color: #3CC658;">check_circle</span>
+            <h4 class="wiz-title" style="margin-top: 12px;">Offerte ingediend!</h4>
+            <p class="wiz-subtitle">Referentienummer: <strong>#@_aanvraag?.Id</strong></p>
+
+            <div class="card" style="max-width: 600px; margin: 24px auto; text-align: left;">
+                <h6 style="color: #005FAA; margin-bottom: 12px;">Wat gebeurt er nu?</h6>
+                <div class="timeline">
+                    <div class="timeline__item timeline__item--done">
+                        <div class="timeline__dot"></div>
+                        <p><strong>Ingediend</strong> — Uw aanvraag is ontvangen</p>
+                    </div>
+                    <div class="timeline__item timeline__item--pending">
+                        <div class="timeline__dot"></div>
+                        <p><strong>Review</strong> — Uw Succesmanager beoordeelt de aanvraag (1-2 werkdagen)</p>
+                    </div>
+                    <div class="timeline__item">
+                        <div class="timeline__dot"></div>
+                        <p><strong>Definitieve offerte</strong> — U ontvangt de bijgestelde offerte</p>
+                    </div>
+                    <div class="timeline__item">
+                        <div class="timeline__dot"></div>
+                        <p><strong>Planning</strong> — Bij akkoord wordt de inzet ingepland</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn--primary btn--pill" @onclick="DownloadPdf">
+                    <span class="material-symbols-outlined">picture_as_pdf</span> Download Conceptofferte
+                </button>
+                <button class="btn btn--ghost btn--pill" @onclick="@(() => Nav.NavigateTo("/"))">
+                    <span class="material-symbols-outlined">home</span> Terug naar Home
+                </button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private readonly List<string> _stepLabels = new() { "Profiel", "Thema's", "Vragen", "Samenvatting" };
+    private int _activeStep;
+    private bool _completed;
+    private bool _submitting;
+    private string? _toastMessage;
+    private string _toastType = "info";
+
+    private Klant? _klant;
+    private List<OptimalisatieThema> _themas = new();
+    private HashSet<int> _geselecteerdeThemaIds = new();
+    private List<Verdiepingsvraag> _relevanteVragen = new();
+    private Dictionary<int, string> _antwoorden = new();
+    private List<BerekendResultaat> _resultaten = new();
+    private List<OfferteIndicatie> _indicaties = new();
+    private string? _opmerkingen;
+    private OfferteAanvraag? _aanvraag;
+    private byte[]? _pdfBytes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _themas = await ThemaService.GetAlleThemasAsync();
+        if (AppState.HuidigeKlantId.HasValue)
+        {
+            _klant = await KlantService.GetKlantByIdAsync(AppState.HuidigeKlantId.Value);
+            if (_klant != null)
+                _indicaties = Calculator.BerekenIndicatie(_klant, _themas);
+        }
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step < _activeStep)
+            _activeStep = step;
+    }
+
+    private void ShowToast(string message, string type = "info")
+    {
+        _toastMessage = message;
+        _toastType = type;
+        StateHasChanged();
+        _ = DismissToast();
+    }
+
+    private async Task DismissToast()
+    {
+        await Task.Delay(4000);
+        _toastMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void NextStep()
+    {
+        switch (_activeStep)
+        {
+            case 0:
+                if (_klant == null)
+                {
+                    ShowToast("Selecteer eerst een klant in de bovenste balk.", "warning");
+                    return;
+                }
+                break;
+            case 1:
+                if (!_geselecteerdeThemaIds.Any())
+                {
+                    ShowToast("Selecteer minimaal één thema.", "warning");
+                    return;
+                }
+                if (_klant != null)
+                    _relevanteVragen = VragenService.GetVragenVoorThemas(_klant, _geselecteerdeThemaIds.ToList());
+                break;
+            case 2:
+                if (_klant != null)
+                {
+                    var geselecteerdeThemas = _themas.Where(t => _geselecteerdeThemaIds.Contains(t.Id)).ToList();
+                    var vraagAntwoorden = _antwoorden
+                        .Select(kv => new VraagAntwoord { VraagId = kv.Key, Antwoord = kv.Value })
+                        .ToList();
+                    _resultaten = Calculator.Bereken(_klant, geselecteerdeThemas, vraagAntwoorden);
+                }
+                break;
+        }
+        _activeStep = Math.Min(_activeStep + 1, 3);
+    }
+
+    private void PreviousStep()
+    {
+        _activeStep = Math.Max(_activeStep - 1, 0);
+    }
+
+    private async Task SubmitOfferte()
+    {
+        if (_klant == null || !_resultaten.Any()) return;
+
+        _submitting = true;
+        try
+        {
+            _aanvraag = await OfferteService.MaakAanvraagAsync(_klant.Id, _resultaten, _opmerkingen);
+            _aanvraag = await OfferteService.GetAanvraagByIdAsync(_aanvraag.Id);
+            if (_aanvraag != null)
+                _pdfBytes = PdfGenerator.GenereerOffertePdf(_aanvraag);
+            _completed = true;
+            ShowToast("Conceptofferte succesvol ingediend!", "success");
+        }
+        catch
+        {
+            ShowToast("Er ging iets mis bij het indienen. Probeer het opnieuw.", "error");
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private void ToggleThema(int themaId)
+    {
+        if (!_geselecteerdeThemaIds.Remove(themaId))
+            _geselecteerdeThemaIds.Add(themaId);
+        UpdateIndicaties();
+    }
+
+    private void UpdateIndicaties()
+    {
+        if (_klant == null) return;
+        var geselecteerdeThemas = _themas.Where(t => _geselecteerdeThemaIds.Contains(t.Id)).ToList();
+        _indicaties = geselecteerdeThemas.Any()
+            ? Calculator.BerekenIndicatie(_klant, geselecteerdeThemas)
+            : new List<OfferteIndicatie>();
+    }
+
+    private string GetAntwoord(int vraagId) => _antwoorden.GetValueOrDefault(vraagId, "");
+    private void SetAntwoord(int vraagId, string waarde) => _antwoorden[vraagId] = waarde;
+    private int GetAntwoordSchaal(int vraagId) => int.TryParse(GetAntwoord(vraagId), out var v) ? v : 3;
+
+    private async Task DownloadPdf()
+    {
+        if (_pdfBytes == null || _aanvraag == null) return;
+        var fileName = $"Conceptofferte_{_aanvraag.Klant?.Naam?.Replace(" ", "_")}_{_aanvraag.AanvraagDatum:yyyyMMdd}.pdf";
+        var base64 = Convert.ToBase64String(_pdfBytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+
+    private static string FormatBeheerOmvang(BeheerOmvang o) => o switch
+    {
+        BeheerOmvang.Klein => "1-2 beheerders (klein)",
+        BeheerOmvang.Middel => "3-5 beheerders (middel)",
+        BeheerOmvang.Groot => ">5 beheerders (groot)",
+        _ => o.ToString()
+    };
+
+    private static string FormatTemplateVersie(TemplateVersie v) => v switch
+    {
+        TemplateVersie.Oud => "Vóór 2023 (oud)",
+        TemplateVersie.Recent => "2023-2024 (recent)",
+        TemplateVersie.Actueel => "2025+ (actueel)",
+        _ => v.ToString()
+    };
+
+    private static string GetThemaIcon(string icoon) => icoon switch
+    {
+        "People" => "👥",
+        "Payments" => "💰",
+        "AccountBalance" => "🏦",
+        "AccountTree" => "🔀",
+        "BarChart" => "📊",
+        "Hub" => "🔗",
+        _ => "📦"
+    };
+
+    private string GetThemaIconByName(string themaNaam)
+    {
+        var thema = _themas.FirstOrDefault(t => t.Naam == themaNaam);
+        return thema != null ? GetThemaIcon(thema.Icoon) : "📦";
+    }
+}

@@ -1,0 +1,269 @@
+@page "/configurator"
+@rendermode InteractiveServer
+
+<PageTitle>AFAS Direct Configurator</PageTitle>
+
+<div class="cfg">
+    <div class="cfg-card">
+
+        @* ── Header ── *@
+        <div class="cfg-header">
+            <div class="cfg-logo">
+                <svg viewBox="0 0 120 40" class="cfg-logo__svg">
+                    <text x="0" y="30" font-family="Roboto, sans-serif" font-weight="700" font-size="28" fill="#005FAA">AFAS</text>
+                    <text x="77" y="30" font-family="Roboto, sans-serif" font-weight="300" font-size="14" fill="#005FAA">Software</text>
+                </svg>
+            </div>
+            <span class="cfg-badge">🏆 MARKTLEIDER ERP</span>
+            <h1 class="cfg-title">AFAS Direct Configurator</h1>
+        </div>
+
+        @* ── Step Indicator ── *@
+        <div class="cfg-steps">
+            @for (int i = 0; i < _steps.Length; i++)
+            {
+                var idx = i;
+                var isActive = idx == _activeStep;
+                var isCompleted = idx < _activeStep;
+
+                @if (i > 0)
+                {
+                    <div class="cfg-steps__line @(isCompleted ? "cfg-steps__line--done" : "")"></div>
+                }
+
+                <div class="cfg-steps__item @(isActive ? "cfg-steps__item--active" : "") @(isCompleted ? "cfg-steps__item--done" : "")"
+                     @onclick="() => GoToStep(idx)">
+                    <div class="cfg-steps__num">
+                        @if (isCompleted)
+                        {
+                            <span class="cfg-check">✓</span>
+                        }
+                        else
+                        {
+                            @(idx + 1)
+                        }
+                    </div>
+                    <span class="cfg-steps__label">@_steps[idx]</span>
+                </div>
+            }
+        </div>
+
+        @* ── Step Subtitle ── *@
+        <p class="cfg-subtitle">Stap @(_activeStep + 1) van @_steps.Length — @_stepDescriptions[_activeStep]</p>
+
+        @* ── Step Content ── *@
+        <div class="cfg-content" @key="_activeStep">
+
+            @* ════════ STAP 1: TYPE ════════ *@
+            @if (_activeStep == 0)
+            {
+                <div class="cfg-cards">
+                    @foreach (var opt in _typeOpties)
+                    {
+                        var o = opt;
+                        <div class="cfg-option @(_selectedType == o.Key ? "cfg-option--selected" : "")"
+                             @onclick="() => SelectType(o.Key)">
+                            <span class="cfg-option__icon">@o.Icon</span>
+                            <span class="cfg-option__title">@o.Title</span>
+                            <span class="cfg-option__desc">@o.Description</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ════════ STAP 2: OMVANG ════════ *@
+            @if (_activeStep == 1)
+            {
+                <div class="cfg-cards cfg-cards--four">
+                    @foreach (var opt in _omvangOpties)
+                    {
+                        var o = opt;
+                        <div class="cfg-option @(_selectedOmvang == o.Key ? "cfg-option--selected" : "")"
+                             @onclick="() => SelectOmvang(o.Key)">
+                            <span class="cfg-option__icon">@o.Icon</span>
+                            <span class="cfg-option__title">@o.Title</span>
+                            <span class="cfg-option__desc">@o.Description</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ════════ STAP 3: PROFIEL ════════ *@
+            @if (_activeStep == 2)
+            {
+                <div class="cfg-cards cfg-cards--vertical">
+                    @foreach (var opt in _profielOpties)
+                    {
+                        var o = opt;
+                        <div class="cfg-option cfg-option--horizontal @(_selectedProfiel == o.Key ? "cfg-option--selected" : "")"
+                             @onclick="() => SelectProfiel(o.Key)">
+                            <span class="cfg-option__icon">@o.Icon</span>
+                            <div class="cfg-option__text">
+                                <span class="cfg-option__title">@o.Title</span>
+                                <span class="cfg-option__desc">@o.Description</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ════════ STAP 4: MATCH ════════ *@
+            @if (_activeStep == 3)
+            {
+                <div class="cfg-match">
+                    <div class="cfg-match__icon">🎯</div>
+                    <h2 class="cfg-match__title">Uw perfecte match</h2>
+                    <p class="cfg-match__desc">
+                        Op basis van uw keuzes raden we het volgende pakket aan:
+                    </p>
+
+                    <div class="cfg-match__result">
+                        <div class="cfg-match__badge">AANBEVOLEN</div>
+                        <h3 class="cfg-match__name">@GetMatchName()</h3>
+                        <p class="cfg-match__detail">@GetMatchDetail()</p>
+
+                        <div class="cfg-match__tags">
+                            <span class="cfg-match__tag">@GetTypeLabel()</span>
+                            <span class="cfg-match__tag">@GetOmvangLabel()</span>
+                            <span class="cfg-match__tag">@GetProfielLabel()</span>
+                        </div>
+                    </div>
+
+                    <button class="cfg-btn cfg-btn--primary cfg-btn--large" @onclick="() => {}">
+                        Vraag een demo aan →
+                    </button>
+
+                    <button class="cfg-btn cfg-btn--ghost" @onclick="Reset">
+                        Opnieuw beginnen
+                    </button>
+                </div>
+            }
+        </div>
+
+        @* ── Navigation Buttons ── *@
+        @if (_activeStep < 3)
+        {
+            <div class="cfg-nav">
+                @if (_activeStep > 0)
+                {
+                    <button class="cfg-btn cfg-btn--ghost" @onclick="PrevStep">
+                        ← Vorige
+                    </button>
+                }
+                else
+                {
+                    <span></span>
+                }
+
+                <button class="cfg-btn cfg-btn--primary" disabled="@(!CanAdvance())" @onclick="NextStep">
+                    Volgende →
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private int _activeStep;
+    private string? _selectedType;
+    private string? _selectedOmvang;
+    private string? _selectedProfiel;
+
+    private readonly string[] _steps = ["Type", "Omvang", "Profiel", "Match"];
+
+    private readonly string[] _stepDescriptions =
+    [
+        "Wat voor type organisatie ben je?",
+        "Hoe groot is je organisatie?",
+        "Wat past het beste bij jouw werkwijze?",
+        "Dit is jouw aanbevolen configuratie"
+    ];
+
+    // ── Step 1 options ──
+    private readonly ConfigOption[] _typeOpties =
+    [
+        new("dienstverlener", "💼", "Zakelijke dienstverlener", "Advies, projecten, urenregistratie"),
+        new("handel", "📦", "Handelsbedrijf", "Groothandel, distributie, logistiek"),
+        new("accountancy", "🧾", "Accountancy", "Boekhouding, fiscaal, cliëntbeheer"),
+    ];
+
+    // ── Step 2 options ──
+    private readonly ConfigOption[] _omvangOpties =
+    [
+        new("klein", "👤", "1 – 10 medewerkers", "Startend of klein team"),
+        new("midden", "👥", "11 – 50 medewerkers", "Groeiende organisatie"),
+        new("groot", "🏢", "51 – 200 medewerkers", "Middelgroot bedrijf"),
+        new("enterprise", "🏙️", "200+ medewerkers", "Enterprise organisatie"),
+    ];
+
+    // ── Step 3 options ──
+    private readonly ConfigOption[] _profielOpties =
+    [
+        new("operationeel", "⚙️", "Operationeel", "Focus op dagelijkse processen en efficiëntie"),
+        new("strategisch", "📊", "Strategisch", "Focus op groei, data-analyse en besluitvorming"),
+        new("compliant", "🔒", "Compliance & controle", "Focus op wet- en regelgeving en audittrails"),
+    ];
+
+    private void SelectType(string key) => _selectedType = key;
+    private void SelectOmvang(string key) => _selectedOmvang = key;
+    private void SelectProfiel(string key) => _selectedProfiel = key;
+
+    private bool CanAdvance() => _activeStep switch
+    {
+        0 => _selectedType != null,
+        1 => _selectedOmvang != null,
+        2 => _selectedProfiel != null,
+        _ => false
+    };
+
+    private void NextStep()
+    {
+        if (CanAdvance() && _activeStep < _steps.Length - 1)
+            _activeStep++;
+    }
+
+    private void PrevStep()
+    {
+        if (_activeStep > 0)
+            _activeStep--;
+    }
+
+    private void GoToStep(int step)
+    {
+        if (step <= _activeStep)
+            _activeStep = step;
+    }
+
+    private void Reset()
+    {
+        _activeStep = 0;
+        _selectedType = null;
+        _selectedOmvang = null;
+        _selectedProfiel = null;
+    }
+
+    private string GetTypeLabel() => _typeOpties.FirstOrDefault(o => o.Key == _selectedType)?.Title ?? "";
+    private string GetOmvangLabel() => _omvangOpties.FirstOrDefault(o => o.Key == _selectedOmvang)?.Title ?? "";
+    private string GetProfielLabel() => _profielOpties.FirstOrDefault(o => o.Key == _selectedProfiel)?.Title ?? "";
+
+    private string GetMatchName() => (_selectedType, _selectedOmvang) switch
+    {
+        ("accountancy", _) => "AFAS Accountancy",
+        ("handel", "enterprise" or "groot") => "AFAS Handel Professional",
+        ("handel", _) => "AFAS Handel Compact",
+        ("dienstverlener", "enterprise" or "groot") => "AFAS Professional",
+        _ => "AFAS Complete"
+    };
+
+    private string GetMatchDetail() => (_selectedType, _selectedProfiel) switch
+    {
+        ("accountancy", _) => "De complete oplossing voor accountants- en administratiekantoren met cliëntbeheer, fiscale aangiften en samenstelpraktijk.",
+        ("handel", "strategisch") => "Krachtige ERP-oplossing met uitgebreide rapportages, voorraadoptimalisatie en business intelligence dashboards.",
+        ("handel", _) => "Volledige ondersteuning voor in- en verkoop, voorraadbeheer, logistiek en e-commerce koppelingen.",
+        ("dienstverlener", "compliant") => "Urenregistratie, projectbeheer en facturatie met volledige audit trail en compliance rapportages.",
+        ("dienstverlener", _) => "Projectmanagement, urenregistratie en slimme facturatie voor professionele dienstverleners.",
+        _ => "Complete ERP-oplossing afgestemd op uw specifieke behoeften."
+    };
+
+    private record ConfigOption(string Key, string Icon, string Title, string Description);
+}

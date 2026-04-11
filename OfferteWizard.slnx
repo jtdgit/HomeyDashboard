@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OfferteWizard.Core/OfferteWizard.Core.csproj" />
+    <Project Path="src/OfferteWizard.Infrastructure/OfferteWizard.Infrastructure.csproj" />
+    <Project Path="src/OfferteWizard.Web/OfferteWizard.Web.csproj" />
+  </Folder>
+</Solution>
