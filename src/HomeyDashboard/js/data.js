@@ -1,6 +1,6 @@
 const HomeyData = {
   house: {
-    name: "Huize De Vries",
+    name: "Huize TD",
     location: "Amsterdam",
     weather: {
       temp: 8,
@@ -102,6 +102,12 @@ const HomeyData = {
     { id: 4, name: "Beweging tuin", icon: "motion_sensor_alert", active: true, trigger: "Bewegingssensor tuin", condition: "Na zonsondergang", action: "Buitenlamp 5 min aan", lastRun: "Vandaag 12:15", runs: 2304 },
     { id: 5, name: "TV Tijd", icon: "tv", active: false, trigger: "TV aangezet", condition: "Na 18:00", action: "Woonkamer dimmen 40%", lastRun: "Gisteren 20:14", runs: 56 },
     { id: 6, name: "Wasmachine klaar", icon: "notifications_active", active: true, trigger: "Stekker < 5W", condition: "Was bezig geweest", action: "Notificatie sturen", lastRun: "Gisteren 14:22", runs: 34 }
+  ],
+
+  cameras: [
+    { id: 1, name: "Voordeur", location: "Voortuin", online: true, recording: true, motion: false, lastMotion: "14:32", snapshot: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=640&h=360&fit=crop&crop=center" },
+    { id: 2, name: "Achtertuin", location: "Tuin", online: true, recording: true, motion: true, lastMotion: "12:15", snapshot: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=640&h=360&fit=crop&crop=center" },
+    { id: 3, name: "Garage", location: "Oprit", online: true, recording: false, motion: false, lastMotion: "Gisteren 22:41", snapshot: "https://images.unsplash.com/photo-1486006920555-c77dcf18193c?w=640&h=360&fit=crop&crop=center" }
   ],
 
   notifications: [

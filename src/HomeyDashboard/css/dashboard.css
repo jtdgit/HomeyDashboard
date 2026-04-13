@@ -29,6 +29,8 @@
   --color-flows-glow: rgba(167, 139, 250, 0.12);
   --color-notifications: #fb923c;
   --color-notifications-glow: rgba(251, 146, 60, 0.12);
+  --color-cameras: #6ee7b7;
+  --color-cameras-glow: rgba(110, 231, 183, 0.12);
 
   /* Functional */
   --color-success: #10b981;
@@ -256,11 +258,13 @@ h1, h2, h3, h4 {
 .card--climate  { --card-accent: var(--color-climate);       --card-glow: var(--color-climate-glow); }
 .card--devices  { --card-accent: var(--color-devices);       --card-glow: var(--color-devices-glow); }
 .card--flows    { --card-accent: var(--color-flows);         --card-glow: var(--color-flows-glow); }
+.card--cameras  { --card-accent: var(--color-cameras);       --card-glow: var(--color-cameras-glow); }
 .card--notifications { --card-accent: var(--color-notifications); --card-glow: var(--color-notifications-glow); }
 
 /* Grid spans */
 .card--energy   { grid-column: span 2; }
 .card--devices  { grid-column: span 2; }
+.card--cameras  { grid-column: span 4; }
 
 /* ===== ENERGY MODULE ===== */
 .energy-stats {
@@ -883,6 +887,7 @@ h1, h2, h3, h4 {
 .card:nth-child(4) { animation-delay: 0.2s; }
 .card:nth-child(5) { animation-delay: 0.25s; }
 .card:nth-child(6) { animation-delay: 0.3s; }
+.card:nth-child(7) { animation-delay: 0.35s; }
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1200px) {
@@ -891,6 +896,9 @@ h1, h2, h3, h4 {
   }
   .card--energy,
   .card--devices {
+    grid-column: span 2;
+  }
+  .card--cameras {
     grid-column: span 2;
   }
   .flow__meta {
@@ -920,7 +928,8 @@ h1, h2, h3, h4 {
   }
 
   .card--energy,
-  .card--devices {
+  .card--devices,
+  .card--cameras {
     grid-column: span 1;
   }
 
@@ -946,6 +955,160 @@ h1, h2, h3, h4 {
 
   .devices-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== CAMERAS MODULE ===== */
+.cameras-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.camera-feed {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--transition);
+}
+
+.camera-feed:hover {
+  border-color: rgba(110, 231, 183, 0.25);
+  box-shadow: 0 4px 20px rgba(110, 231, 183, 0.08);
+}
+
+.camera-feed__img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.7) saturate(0.8);
+  transition: filter var(--transition);
+}
+
+.camera-feed:hover .camera-feed__img {
+  filter: brightness(0.85) saturate(0.9);
+}
+
+.camera-feed__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 40%, transparent 60%, rgba(0,0,0,0.65) 100%);
+  pointer-events: none;
+}
+
+.camera-feed__top {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.camera-feed__name {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.camera-feed__badges {
+  display: flex;
+  gap: 5px;
+}
+
+.camera-feed__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.camera-feed__badge--rec {
+  background: rgba(244, 63, 94, 0.85);
+  color: #fff;
+}
+
+.camera-feed__badge--rec::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.camera-feed__badge--motion {
+  background: rgba(251, 191, 36, 0.85);
+  color: #1a1f24;
+}
+
+.camera-feed__badge--online {
+  background: rgba(16, 185, 129, 0.85);
+  color: #fff;
+}
+
+.camera-feed__bottom {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.camera-feed__location {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.camera-feed__time {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.camera-feed__scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(110, 231, 183, 0.4), transparent);
+  animation: scanline 4s linear infinite;
+  z-index: 2;
+  pointer-events: none;
+}
+
+@keyframes scanline {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@media (max-width: 1200px) {
+  .cameras-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .cameras-grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderClimate();
   renderAlarm();
   renderDevices();
+  renderCameras();
   renderFlows();
   renderNotifications();
   setInterval(renderClock, 10000);
@@ -408,6 +409,31 @@ function renderDeviceGrid(containerId, devices) {
       device.brightness = parseInt(e.target.value);
     });
   });
+}
+
+// ===== CAMERAS MODULE =====
+function renderCameras() {
+  const cameras = HomeyData.cameras;
+  const container = document.getElementById('cameras-grid');
+  container.innerHTML = cameras.map(cam => `
+    <div class="camera-feed">
+      <img class="camera-feed__img" src="${cam.snapshot}" alt="${cam.name}" loading="lazy">
+      <div class="camera-feed__overlay"></div>
+      <div class="camera-feed__scanline"></div>
+      <div class="camera-feed__top">
+        <span class="camera-feed__name">${cam.name}</span>
+        <div class="camera-feed__badges">
+          ${cam.online ? '<span class="camera-feed__badge camera-feed__badge--online">Online</span>' : ''}
+          ${cam.recording ? '<span class="camera-feed__badge camera-feed__badge--rec">REC</span>' : ''}
+          ${cam.motion ? '<span class="camera-feed__badge camera-feed__badge--motion">Beweging</span>' : ''}
+        </div>
+      </div>
+      <div class="camera-feed__bottom">
+        <span class="camera-feed__location">${cam.location}</span>
+        <span class="camera-feed__time">Laatste beweging: ${cam.lastMotion}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 // ===== FLOWS MODULE =====
